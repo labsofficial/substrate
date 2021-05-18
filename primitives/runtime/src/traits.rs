@@ -1207,7 +1207,7 @@ macro_rules! count {
 /// }
 /// ```
 #[macro_export]
-macro_rules! impl_opaque_keys {
+macro_rules! impl_opaque_keys_inner {
 	(
 		$( #[ $attr:meta ] )*
 		pub struct $name:ident {
@@ -1217,24 +1217,18 @@ macro_rules! impl_opaque_keys {
 			)*
 		}
 	) => {
-		$crate::paste::paste! {
-			#[cfg(feature = "std")]
-			use $crate::serde as [< __opaque_keys_serde_import__ $name >];
-			$( #[ $attr ] )*
-				#[derive(
-					Default, Clone, PartialEq, Eq,
-					$crate::codec::Encode,
-					$crate::codec::Decode,
-					$crate::RuntimeDebug,
-				)]
-			#[cfg_attr(feature = "std", derive($crate::serde::Serialize, $crate::serde::Deserialize))]
-			#[cfg_attr(feature = "std", serde(crate = "__opaque_keys_serde_import__" $name))]
-			pub struct $name {
-				$(
-					$( #[ $inner_attr ] )*
-						pub $field: <$type as $crate::BoundToRuntimeAppPublic>::Public,
-				)*
-			}
+		$( #[ $attr ] )*
+		#[derive(
+			Default, Clone, PartialEq, Eq,
+			$crate::codec::Encode,
+			$crate::codec::Decode,
+			$crate::RuntimeDebug,
+		)]
+		pub struct $name {
+			$(
+				$( #[ $inner_attr ] )*
+				pub $field: <$type as $crate::BoundToRuntimeAppPublic>::Public,
+			)*
 		}
 
 		impl $name {
@@ -1318,6 +1312,60 @@ macro_rules! impl_opaque_keys {
 			}
 		}
 	};
+}
+
+#[macro_export]
+#[cfg(feature = "std")]
+macro_rules! impl_opaque_keys {
+	{
+		$( #[ $attr:meta ] )*
+		pub struct $name:ident {
+			$(
+				$( #[ $inner_attr:meta ] )*
+				pub $field:ident: $type:ty,
+			)*
+		}
+	} => {
+		$crate::paste::paste! {
+			use $crate::serde as [< __opaque_keys_serde_import__ $name >];
+
+			$crate::impl_opaque_keys_inner! {
+				$( #[ $attr ] )*
+				#[derive($crate::serde::Serialize, $crate::serde::Deserialize)]
+				#[serde(crate = "__opaque_keys_serde_import__" $name)]
+				pub struct $name {
+					$(
+						$( #[ $inner_attr ] )*
+						pub $field: $type,
+					)*
+				}
+			}
+		}
+	}
+}
+
+#[macro_export]
+#[cfg(not(feature = "std"))]
+macro_rules! impl_opaque_keys {
+	{
+		$( #[ $attr:meta ] )*
+		pub struct $name:ident {
+			$(
+				$( #[ $inner_attr:meta ] )*
+				pub $field:ident: $type:ty,
+			)*
+		}
+	} => {
+		$crate::impl_opaque_keys_inner! {
+			$( #[ $attr ] )*
+			pub struct $name {
+				$(
+					$( #[ $inner_attr ] )*
+					pub $field: $type,
+				)*
+			}
+		}
+	}
 }
 
 /// Trait for things which can be printed from the runtime.
